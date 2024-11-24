@@ -41,7 +41,7 @@ def create_line_chart(title, x, y):
 def create_layout():
     layout = dbc.Container([
         dbc.Row([
-            dbc.Col(html.H1("네트워크 모니터링 및 트래픽 예측 대시보드"), width=12)
+            dbc.Col(html.Img(src='assets/checknetLogo.png', style={'width': '300px', 'height': '150px', 'marginRight': '10px'}), width='auto'),
         ]),
 
         dbc.Row([
@@ -75,14 +75,16 @@ def create_layout():
 
         dbc.Row([
             dbc.Col(dbc.Card([
-                dbc.CardHeader("예측된 송신 데이터"),
-                dbc.CardBody(dcc.Graph(id='predicted-sent-data'))
-            ], className="mb-4"), width=6),
+                dbc.CardHeader("Prophet 송신 데이터 예측 결과"),
+                dbc.CardBody(dcc.Graph(id='prophet-forecast-sent'))
+            ], className="mb-4"), width=12),
+        ]),
 
+        dbc.Row([
             dbc.Col(dbc.Card([
-                dbc.CardHeader("예측된 수신 데이터"),
-                dbc.CardBody(dcc.Graph(id='predicted-recv-data'))
-            ], className="mb-4"), width=6),
+                dbc.CardHeader("Prophet 수신 데이터 예측 결과"),
+                dbc.CardBody(dcc.Graph(id='prophet-forecast-recv'))
+            ], className="mb-4"), width=12),
         ]),
 
         dcc.Interval(id='interval-component', interval=4000, n_intervals=0)

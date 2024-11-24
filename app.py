@@ -2,12 +2,13 @@
 import dash
 import dash_bootstrap_components as dbc
 from dash.dependencies import Input, Output
-from dash import dcc, html
-from layout import create_layout, create_donut_chart  # 함수 가져오기
+import matplotlib.pyplot as plt
+from layout import create_layout, create_donut_chart
 from metrics import get_system_metrics
 from predict import predict_network_traffic_lstm
 import pandas as pd
-import plotly.graph_objects as go  # 이 줄을 추가
+import plotly.graph_objects as go
+from prophet import Prophet
 
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 app.layout = create_layout()
@@ -91,6 +92,58 @@ def update_dashboard(n):
         fig_recv.add_trace(go.Scatter(x=list(range(len(predicted_recv_history))), y=predicted_recv_history, mode='lines', name='예측 수신 데이터', line=dict(color='#FF5733', dash='dash')))
 
     return cpu_fig, memory_fig, disk_fig, fig_sent, fig_recv
+
+@app.callback(
+    [Output('prophet-forecast-sent', 'figure'),  # 송신 데이터 예측 그래프
+     Output('prophet-forecast-recv', 'figure')],  # 수신 데이터 예측 그래프
+    [Input('interval-component', 'n_intervals')]
+)
+def update_prophet_forecast(n):
+    # CSV 파일 읽기
+    data = pd.read_csv('system_metrics1.csv', parse_dates=['timestamp'])
+
+    # 송신 데이터 예측을 위한 데이터 준비
+    prophet_data_sent = data[['timestamp', 'network_bytes_sent']].rename(
+        columns={'timestamp': 'ds', 'network_bytes_sent': 'y'})
+
+    # 수신 데이터 예측을 위한 데이터 준비
+    prophet_data_recv = data[['timestamp', 'network_bytes_recv']].rename(
+        columns={'timestamp': 'ds', 'network_bytes_recv': 'y'})
+
+    # 송신 모델 생성 및 학습
+    model_sent = Prophet()
+    model_sent.fit(prophet_data_sent)
+
+    # 수신 모델 생성 및 학습
+    model_recv = Prophet()
+    model_recv.fit(prophet_data_recv)
+
+    # 향후 30개의 시간 데이터 생성
+    future_sent = model_sent.make_future_dataframe(periods=30, freq='T')
+    future_recv = model_recv.make_future_dataframe(periods=30, freq='T')
+
+    # 예측 수행
+    forecast_sent = model_sent.predict(future_sent)
+    forecast_recv = model_recv.predict(future_recv)
+
+    # 송신 데이터 예측 결과 시각화
+    fig_sent = go.Figure()
+    fig_sent.add_trace(go.Scatter(x=prophet_data_sent['ds'], y=prophet_data_sent['y'], mode='lines', name='실제 송신 데이터'))
+    fig_sent.add_trace(go.Scatter(x=forecast_sent['ds'], y=forecast_sent['yhat'], mode='lines', name='예측 송신값', line=dict(dash='dash', color='orange')))
+    fig_sent.add_trace(go.Scatter(x=forecast_sent['ds'], y=forecast_sent['yhat_upper'], mode='lines', name='송신 상한', line=dict(color='lightgrey', dash='dash')))
+    fig_sent.add_trace(go.Scatter(x=forecast_sent['ds'], y=forecast_sent['yhat_lower'], mode='lines', name='송신 하한', line=dict(color='lightgrey', dash='dash')))
+    fig_sent.update_layout(title='송신 데이터 Prophet 예측 결과', xaxis_title='시간', yaxis_title='송신 데이터 바이트')
+
+    # 수신 데이터 예측 결과 시각화
+    fig_recv = go.Figure()
+    fig_recv.add_trace(go.Scatter(x=prophet_data_recv['ds'], y=prophet_data_recv['y'], mode='lines', name='실제 수신 데이터'))
+    fig_recv.add_trace(go.Scatter(x=forecast_recv['ds'], y=forecast_recv['yhat'], mode='lines', name='예측 수신값', line=dict(dash='dash', color='orange')))
+    fig_recv.add_trace(go.Scatter(x=forecast_recv['ds'], y=forecast_recv['yhat_upper'], mode='lines', name='수신 상한', line=dict(color='lightgrey', dash='dash')))
+    fig_recv.add_trace(go.Scatter(x=forecast_recv['ds'], y=forecast_recv['yhat_lower'], mode='lines', name='수신 하한', line=dict(color='lightgrey', dash='dash')))
+    fig_recv.update_layout(title='수신 데이터 Prophet 예측 결과', xaxis_title='시간', yaxis_title='수신 데이터 바이트')
+
+    return fig_sent, fig_recv
+
 
 if __name__ == '__main__':
     app.run_server(debug=True)

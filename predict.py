@@ -24,7 +24,6 @@ def predict_network_traffic_lstm(history, sample_size=50, retrain=False):
     global model
 
     if len(history) < 5:
-        print("데이터가 부족합니다.")
         return None
 
     if len(history) > sample_size:
@@ -38,15 +37,11 @@ def predict_network_traffic_lstm(history, sample_size=50, retrain=False):
 
     # 학습이 필요한 경우에만 모델 학습
     if retrain or not os.path.exists(MODEL_PATH):
-        print("모델 학습 시작...")
         model.fit(data, data, epochs=10, batch_size=1, verbose=0)
         model.save(MODEL_PATH)  # 학습된 모델 저장
-        print("모델 학습 완료 및 저장.")
 
     # 예측 수행
-    print("예측 수행 중...")
     predicted_value = model.predict(data[-1].reshape(1, 1, 1))
-    print(f"예측값: {predicted_value[0][0]}")
 
     return predicted_value[0][0]
 
