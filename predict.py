@@ -1,37 +1,52 @@
 import numpy as np
-import tensorflow as tf
-from tensorflow.keras.models import Sequential
+import os
+from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.layers import LSTM, Dense, Input
 
-def predict_network_traffic_lstm(history, sample_size=50):
-    # 데이터가 충분하지 않으면 None 반환
+# 모델과 파일 경로를 전역으로 설정
+model = None
+MODEL_PATH = 'network_traffic_model.h5'
+
+def initialize_model(input_shape):
+    global model
+    if os.path.exists(MODEL_PATH):
+        # 모델이 이미 저장되어 있으면 로드
+        model = load_model(MODEL_PATH)
+    else:
+        # 모델이 없으면 새로 생성
+        model = Sequential()
+        model.add(Input(shape=input_shape))
+        model.add(LSTM(50, activation='relu'))
+        model.add(Dense(1))
+        model.compile(optimizer='adam', loss='mean_squared_error')
+
+def predict_network_traffic_lstm(history, sample_size=50, retrain=False):
+    global model
+
     if len(history) < 5:
         print("데이터가 부족합니다.")
         return None
 
-    # 최근 데이터 샘플링
     if len(history) > sample_size:
-        history = history[-sample_size:]  # 최근 sample_size 개 데이터만 사용
+        history = history[-sample_size:]
 
-    # 데이터 전처리 (시계열 데이터를 LSTM 모델에 맞게 변환)
     data = np.array(history)
-    data = data.reshape((data.shape[0], 1, 1))  # (샘플 수, 타임스텝, 특성 수)
+    data = data.reshape((data.shape[0], 1, 1))
 
-    # LSTM 모델 정의
-    model = Sequential()
-    model.add(Input(shape=(data.shape[1], data.shape[2])))  # Input(shape)로 첫 번째 레이어 정의
-    model.add(LSTM(50, activation='relu'))  # LSTM 레이어 추가
-    model.add(Dense(1))
-    model.compile(optimizer='adam', loss='mean_squared_error')
+    # 모델 초기화 및 재사용
+    initialize_model(input_shape=(data.shape[1], data.shape[2]))
 
-    # 모델 학습 (간단한 예시로 한 번만 학습)
-    print("모델 학습 시작...")
-    model.fit(data, data, epochs=10, batch_size=1, verbose=0)
-    print("모델 학습 완료.")
+    # 학습이 필요한 경우에만 모델 학습
+    if retrain or not os.path.exists(MODEL_PATH):
+        print("모델 학습 시작...")
+        model.fit(data, data, epochs=10, batch_size=1, verbose=0)
+        model.save(MODEL_PATH)  # 학습된 모델 저장
+        print("모델 학습 완료 및 저장.")
 
-    # 예측 수행 (마지막 데이터를 기준으로 예측)
+    # 예측 수행
     print("예측 수행 중...")
-    predicted_value = model.predict(data[-1].reshape(1, 1, 1))  # 마지막 데이터를 3차원 배열로 reshape
+    predicted_value = model.predict(data[-1].reshape(1, 1, 1))
     print(f"예측값: {predicted_value[0][0]}")
 
     return predicted_value[0][0]
+
